@@ -1,0 +1,54 @@
+name: Mirror to Personal Repository
+
+on:
+  push:
+    # ✏️ Modify this list to include the branches you want to mirror
+    branches:
+      - develop
+      - main
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    name: Mirror repository to personal account
+    # ✅ Optional: restrict execution to your organization repo (update with your org/repo name)
+    if: github.repository == 'YOUR_ORG/YOUR_REPO'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.PERSONAL_REPO_PAT }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Mirror Bot"
+          git config --global user.email "mirror@github.com"
+
+      - name: Push to mirror repository
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_REPO_PAT }}
+        run: |
+          BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+          echo "🔄 Mirroring branch: $BRANCH_NAME → ${{ secrets.PERSONAL_REPO_URL }}"
+          git config --global credential.helper store
+          echo "https://${{ secrets.PERSONAL_REPO_PAT }}@github.com" > ~/.git-credentials
+          git remote add mirror ${{ secrets.PERSONAL_REPO_URL }}
+          git push mirror "$BRANCH_NAME:$BRANCH_NAME" --force
+          echo "✅ Branch '$BRANCH_NAME' successfully mirrored to personal repository"
+
+      - name: Mirror status
+        if: success()
+        run: |
+          echo "🎉 Mirror synchronization completed successfully!"
+          echo "Branch: ${GITHUB_REF#refs/heads/}"
+          echo "Commit: ${{ github.sha }}"
+          echo "Mirror URL: ${{ secrets.PERSONAL_REPO_URL }}"
+
+      - name: Mirror failed
+        if: failure()
+        run: |
+          echo "❌ Mirror synchronization failed"
+          echo "Please check the logs above for details"
+          exit 1
